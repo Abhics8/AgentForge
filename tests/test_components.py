@@ -7,6 +7,7 @@ import numpy as np
 import torch
 
 from src.replay_buffer import ReplayBuffer
+from src.model import DQN
 
 
 class TestReplayBuffer:
@@ -109,6 +110,65 @@ class TestReplayBuffer:
         buffer = ReplayBuffer(capacity=500)
         assert "500" in repr(buffer)
         assert "0" in repr(buffer)
+
+
+class TestDQN:
+    """Tests for DQN Neural Network."""
+
+    def test_default_architecture(self):
+        model = DQN()
+        assert model.state_dim == 4
+        assert model.action_dim == 2
+        assert model.hidden_size == 128
+        assert model.num_hidden_layers == 2
+
+    def test_forward_single_state(self):
+        model = DQN(state_dim=4, action_dim=2)
+        state = torch.randn(1, 4)
+        output = model(state)
+        assert output.shape == (1, 2)
+
+    def test_forward_batch(self):
+        """Batch of 64 states (matching proposal batch_size)."""
+        model = DQN()
+        batch = torch.randn(64, 4)
+        output = model(batch)
+        assert output.shape == (64, 2)
+
+    def test_parameter_count(self):
+        """Verify expected param count for 4→128→128→2."""
+        model = DQN(hidden_size=128, num_hidden_layers=2)
+        params = model.get_num_parameters()
+        # 4*128+128 + 128*128+128 + 128*2+2 = 512+128+16384+128+256+2 = 17410
+        assert params == 17410
+
+    def test_variable_depth(self):
+        """Ablation support: different depths must all produce valid output."""
+        for depth in [1, 2, 3]:
+            model = DQN(num_hidden_layers=depth)
+            output = model(torch.randn(1, 4))
+            assert output.shape == (1, 2)
+
+    def test_deeper_network_has_more_params(self):
+        m1 = DQN(num_hidden_layers=1)
+        m2 = DQN(num_hidden_layers=2)
+        m3 = DQN(num_hidden_layers=3)
+        assert m1.get_num_parameters() < m2.get_num_parameters() < m3.get_num_parameters()
+
+    def test_output_not_all_zeros(self):
+        """Xavier init should produce non-trivial first outputs."""
+        model = DQN()
+        output = model(torch.randn(10, 4))
+        assert not torch.all(output == 0)
+
+    def test_gradient_flows(self):
+        """Ensure gradients propagate through the full network."""
+        model = DQN()
+        state = torch.randn(1, 4, requires_grad=True)
+        output = model(state)
+        loss = output.sum()
+        loss.backward()
+        assert state.grad is not None
 
 
 if __name__ == "__main__":
