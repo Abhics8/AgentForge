@@ -8,6 +8,7 @@ import torch
 
 from src.replay_buffer import ReplayBuffer
 from src.model import DQN
+from src.agent import DQNAgent
 
 
 class TestReplayBuffer:
@@ -171,5 +172,82 @@ class TestDQN:
         assert state.grad is not None
 
 
+class TestDQNAgent:
+    """Tests for DQN Agent."""
+
+    def test_initialization(self):
+        agent = DQNAgent()
+        assert agent.epsilon == 1.0
+        assert agent.total_steps == 0
+        assert len(agent.replay_buffer) == 0
+
+    def test_action_in_valid_range(self):
+        agent = DQNAgent()
+        state = np.random.randn(4).astype(np.float32)
+        action = agent.select_action(state)
+        assert action in [0, 1]
+
+    def test_exploration_at_high_epsilon(self):
+        """With ε=1.0, should take diverse random actions."""
+        agent = DQNAgent(epsilon_start=1.0)
+        state = np.zeros(4, dtype=np.float32)
+        actions = [agent.select_action(state) for _ in range(100)]
+        assert 0 in actions and 1 in actions
+
+    def test_exploitation_at_zero_epsilon(self):
+        """With ε=0.0, should be deterministic."""
+        agent = DQNAgent(epsilon_start=0.0, epsilon_end=0.0)
+        state = np.zeros(4, dtype=np.float32)
+        actions = [agent.select_action(state) for _ in range(10)]
+        assert len(set(actions)) == 1
+
+    def test_epsilon_decay(self):
+        agent = DQNAgent(epsilon_start=1.0, epsilon_decay=0.995)
+        agent.decay_epsilon()
+        assert agent.epsilon == pytest.approx(0.995)
+
+    def test_epsilon_floor(self):
+        agent = DQNAgent(epsilon_start=0.02, epsilon_end=0.01, epsilon_decay=0.5)
+        agent.decay_epsilon()
+        assert agent.epsilon >= 0.01
+
+    def test_store_transition(self):
+        agent = DQNAgent()
+        state = np.zeros(4, dtype=np.float32)
+        agent.store_transition(state, 0, 1.0, state, False)
+        assert len(agent.replay_buffer) == 1
+
+    def test_optimize_returns_none_before_ready(self):
+        agent = DQNAgent(batch_size=64)
+        assert agent.optimize() is None
+
+    def test_optimize_returns_loss_when_ready(self):
+        agent = DQNAgent(batch_size=16)
+        for _ in range(20):
+            s = np.random.randn(4).astype(np.float32)
+            agent.store_transition(s, 0, 1.0, s, False)
+        loss = agent.optimize()
+        assert loss is not None
+        assert isinstance(loss, float)
+        assert loss >= 0
+
+    def test_save_and_load(self, tmp_path):
+        agent = DQNAgent()
+        for _ in range(100):
+            s = np.random.randn(4).astype(np.float32)
+            agent.store_transition(s, 0, 1.0, s, False)
+        agent.optimize()
+        agent.decay_epsilon()
+
+        path = str(tmp_path / "test_agent.pt")
+        agent.save(path)
+
+        new_agent = DQNAgent()
+        new_agent.load(path)
+        assert new_agent.epsilon == agent.epsilon
+        assert new_agent.total_steps == agent.total_steps
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
