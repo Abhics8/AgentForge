@@ -1,0 +1,30 @@
+# AgentForge Default Configuration
+# Strict alignment with the CSCI 6366 project proposal specifications.
+
+environment:
+  name: "CartPole-v1"
+  solved_reward: 195.0
+  solved_window: 100
+
+training:
+  episodes: 1000
+  seed: 42
+
+network:
+  hidden_size: 128
+  num_hidden_layers: 2
+
+agent:
+  replay_buffer_size: 10000
+  batch_size: 64
+  gamma: 0.99
+  epsilon_start: 1.0
+  epsilon_end: 0.01
+  epsilon_decay: 0.995
+  learning_rate: 0.001
+  target_update_freq: 1000
+
+logging:
+  log_interval: 10
+  save_interval: 100
+  results_dir: "results"
