@@ -9,6 +9,7 @@ import torch
 from src.replay_buffer import ReplayBuffer
 from src.model import DQN
 from src.agent import DQNAgent
+from src.utils import load_config
 
 
 class TestReplayBuffer:
@@ -246,6 +247,24 @@ class TestDQNAgent:
         new_agent.load(path)
         assert new_agent.epsilon == agent.epsilon
         assert new_agent.total_steps == agent.total_steps
+
+
+class TestUtils:
+    """Tests for utility functions."""
+
+    def test_load_config(self):
+        """Test that default config can be loaded and has expected keys."""
+        config = load_config("configs/default.yaml")
+        assert isinstance(config, dict)
+        assert "environment" in config
+        assert "training" in config
+        assert "network" in config
+        assert "agent" in config
+        assert "logging" in config
+        
+        # Check a specific value
+        assert config["environment"]["name"] == "CartPole-v1"
+        assert config["agent"]["batch_size"] == 64
 
 
 if __name__ == "__main__":
