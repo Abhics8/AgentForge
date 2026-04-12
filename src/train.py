@@ -10,6 +10,8 @@ Implements the fundamental reinforcement learning cycle:
   6. Decay epsilon
 """
 
+import os
+import csv
 import time
 import numpy as np
 from typing import Optional, Dict, Any
@@ -52,6 +54,10 @@ def train(
     hidden_size = config["network"]["hidden_size"]
     num_hidden_layers = config["network"]["num_hidden_layers"]
     log_interval = config["logging"]["log_interval"]
+    save_interval = config["logging"]["save_interval"]
+    results_dir = config["logging"]["results_dir"]
+    solved_reward = config["environment"]["solved_reward"]
+    solved_window = config["environment"]["solved_window"]
 
     # Create environment
     env = make_env(seed=seed)
@@ -74,7 +80,19 @@ def train(
     )
 
     episode_rewards = []
+    convergence_episode = None
     
+    # Ensure results directories exist
+    os.makedirs(f"{results_dir}/plots", exist_ok=True)
+    os.makedirs(f"{results_dir}/checkpoints", exist_ok=True)
+    os.makedirs(f"{results_dir}/logs", exist_ok=True)
+
+    # Setup CSV logging
+    log_file = f"{results_dir}/logs/training_log.csv"
+    csv_file = open(log_file, "w", newline="")
+    csv_writer = csv.writer(csv_file)
+    csv_writer.writerow(["episode", "reward", "epsilon", "avg_loss", "steps", "rolling_avg"])
+
     print(f"\n{'='*50}")
     print(f"  AgentForge — Training Initialized")
     print(f"  Episodes: {num_episodes}")
@@ -103,24 +121,54 @@ def train(
         agent.decay_epsilon()
         episode_rewards.append(episode_reward)
 
+        # Compute metrics
+        rolling_avg = np.mean(episode_rewards[-solved_window:]) if len(episode_rewards) >= solved_window else np.mean(episode_rewards)
+        avg_loss = np.mean(agent.training_losses[-steps:]) if agent.training_losses and steps > 0 else 0.0
+
+        # Log to CSV
+        csv_writer.writerow([episode, episode_reward, agent.epsilon, avg_loss, steps, rolling_avg])
+
+        # Check for convergence
+        if len(episode_rewards) >= solved_window and rolling_avg >= solved_reward:
+            convergence_episode = episode
+            print(f"\n🎉 SOLVED at episode {episode}! Rolling avg: {rolling_avg:.1f} >= {solved_reward}")
+            # Save final model state before breaking
+            agent.save(f"{results_dir}/checkpoints/agent_final.pt")
+            break
+
         if episode % log_interval == 0:
-            avg_reward = np.mean(episode_rewards[-log_interval:])
             print(
                 f"Episode {episode:>4d}/{num_episodes} | "
                 f"Reward: {episode_reward:>5.1f} | "
-                f"Avg(last 10): {avg_reward:>5.1f} | "
+                f"Avg({solved_window}): {rolling_avg:>5.1f} | "
                 f"ε: {agent.epsilon:.4f}"
             )
+            
+        # Save checkpoint periodically
+        if episode % save_interval == 0:
+            agent.save(f"{results_dir}/checkpoints/agent_ep{episode}.pt")
+
+    csv_file.close()
+    
+    # Save final model if we didn't exit early via convergence
+    if convergence_episode is None:
+        agent.save(f"{results_dir}/checkpoints/agent_final.pt")
 
     elapsed = time.time() - start_time
     env.close()
 
     print(f"\n{'='*50}")
     print(f"  Training Complete in {elapsed:.1f}s")
+    if convergence_episode:
+        print(f"  Converged at episode {convergence_episode}")
+    else:
+        print(f"  Failed to converge.")
     print(f"{'='*50}\n")
 
     return {
         "episode_rewards": episode_rewards,
+        "convergence_episode": convergence_episode,
+        "total_time": elapsed,
     }
 
 
