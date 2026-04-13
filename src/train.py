@@ -18,7 +18,12 @@ from typing import Optional, Dict, Any
 
 from src.environment import make_env
 from src.agent import DQNAgent
-from src.utils import load_config
+from src.utils import (
+    load_config,
+    plot_training_curve,
+    plot_epsilon_decay,
+    plot_loss_curve,
+)
 
 
 def train(
@@ -80,6 +85,7 @@ def train(
     )
 
     episode_rewards = []
+    epsilons = []
     convergence_episode = None
     
     # Ensure results directories exist
@@ -120,6 +126,7 @@ def train(
 
         agent.decay_epsilon()
         episode_rewards.append(episode_reward)
+        epsilons.append(agent.epsilon)
 
         # Compute metrics
         rolling_avg = np.mean(episode_rewards[-solved_window:]) if len(episode_rewards) >= solved_window else np.mean(episode_rewards)
@@ -164,9 +171,27 @@ def train(
     else:
         print(f"  Failed to converge.")
     print(f"{'='*50}\n")
+    
+    # Generate plots
+    plot_training_curve(
+        episode_rewards,
+        window=solved_window,
+        save_path=f"{results_dir}/plots/training_curve.png",
+    )
+    plot_epsilon_decay(
+        epsilons,
+        save_path=f"{results_dir}/plots/epsilon_decay.png",
+    )
+    if agent.training_losses:
+        plot_loss_curve(
+            agent.training_losses,
+            save_path=f"{results_dir}/plots/loss_curve.png",
+        )
+    print(f"Plots saved to {results_dir}/plots/")
 
     return {
         "episode_rewards": episode_rewards,
+        "epsilons": epsilons,
         "convergence_episode": convergence_episode,
         "total_time": elapsed,
     }
