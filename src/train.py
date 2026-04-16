@@ -198,5 +198,5 @@ def train(
 
 
 if __name__ == "__main__":
-    # Day 6 requirement: first 100-episode test run
-    train(episodes_override=100)
+    # Run full 1000-episode training run
+    train()
