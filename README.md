@@ -1,16 +1,280 @@
-# AgentForge: Deep Reinforcement Learning for Autonomous Control
+<div align="center">
 
-> Teaching a neural network to master games through trial and error — zero labeled data.
+# 🎮 AgentForge
 
-## Overview
+### Deep Reinforcement Learning for Autonomous Control
 
-**AgentForge** implements a Deep Q-Network (DQN) agent that learns to autonomously control a CartPole environment using Deep Reinforcement Learning. The agent starts with zero knowledge and teaches itself optimal behavior purely through environmental feedback.
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org)
+[![Gymnasium](https://img.shields.io/badge/Gymnasium-CartPole--v1-0081A5?style=for-the-badge&logo=openaigym&logoColor=white)](https://gymnasium.farama.org)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-**Author:** Abhi Bhardwaj
+> *Teaching a neural network to master physical balance through trial, error, and zero labeled data.*
 
-## Tech Stack
+**CSCI 6366 · Neural Networks & Deep Learning · Spring 2026**  
+**George Washington University · Prof. John Sipple**
 
-- PyTorch
-- OpenAI Gymnasium (CartPole-v1)
-- NumPy
-- Matplotlib
+---
+
+</div>
+
+## 📌 Problem Statement
+
+Balancing a pole on a moving cart is a classic control problem. Traditional solutions rely on hand-crafted physics equations and PID controllers. **AgentForge** takes a fundamentally different approach — a neural network agent that starts with **zero knowledge** and teaches itself optimal control purely through environmental feedback using **Deep Q-Learning (DQN)**.
+
+The agent observes a 4-dimensional state vector (cart position, cart velocity, pole angle, pole angular velocity), chooses between two actions (push left / push right), and learns which actions maximize long-term reward through thousands of episodes of trial and error.
+
+**Solved Criteria:** Achieve an average reward of **≥ 195 over 100 consecutive episodes** (OpenAI benchmark).
+
+---
+
+## 🧠 Architecture
+
+```
+                     ┌─────────────────────────────────┐
+                     │       ENVIRONMENT (CartPole-v1)  │
+                     │   state = [x, ẋ, θ, θ̇]          │
+                     └──────────┬──────────────────────┘
+                                │ state
+                                ▼
+┌──────────────────────────────────────────────────────────────┐
+│                        DQN AGENT                             │
+│                                                              │
+│   ┌──────────────┐    ε-greedy     ┌──────────────────────┐  │
+│   │ Policy Net   │ ◄──────────────►│  Action Selection    │  │
+│   │ (4→128→128→2)│    explore/     │  argmax Q(s,a)       │  │
+│   └──────┬───────┘    exploit      └──────────────────────┘  │
+│          │                                                   │
+│          │ MSE Loss                                          │
+│          │                                                   │
+│   ┌──────▼───────┐                 ┌──────────────────────┐  │
+│   │ Target Net   │ ◄── hard copy ──│  Every 500 steps     │  │
+│   │ (frozen)     │    (sync)       │  (target_update_freq) │  │
+│   └──────────────┘                 └──────────────────────┘  │
+│                                                              │
+│   ┌──────────────────────────────────────────────────────┐   │
+│   │  Experience Replay Buffer (capacity: 10,000)         │   │
+│   │  → stores (s, a, r, s', done) transitions            │   │
+│   │  → samples random mini-batches of 64 for training    │   │
+│   └──────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────┘
+                                │ action
+                                ▼
+                     ┌──────────────────────────────────┐
+                     │   reward, next_state, done       │
+                     └──────────────────────────────────┘
+```
+
+### Key Components
+
+| Component | Implementation | Purpose |
+|---|---|---|
+| **Q-Network** | 4 → 128 → 128 → 2 (ReLU) | Approximates Q(s,a) for action selection |
+| **Target Network** | Frozen copy, synced every 500 steps | Provides stable TD targets during training |
+| **Experience Replay** | Circular buffer (10K capacity, batch 64) | Breaks temporal correlation in training data |
+| **ε-Greedy Policy** | ε: 1.0 → 0.01 (decay 0.995/episode) | Balances exploration vs. exploitation |
+| **Optimizer** | Adam (lr=0.001), MSE loss | Gradient descent with adaptive learning rate |
+| **Gradient Clipping** | max_norm=1.0 | Prevents exploding gradients during training |
+
+---
+
+## 📊 Results
+
+### Training Convergence
+
+The DQN agent successfully **solved CartPole-v1** by achieving a rolling average reward of **≥ 195 over 100 episodes**.
+
+<p align="center">
+  <img src="results/plots/training_curve.png" width="600" alt="Training convergence curve showing reward over episodes">
+</p>
+
+### Baseline Comparison
+
+The trained DQN agent massively outperforms both baseline strategies:
+
+<p align="center">
+  <img src="results/plots/baseline_comparison.png" width="550" alt="Bar chart comparing DQN, Heuristic, and Random agents">
+</p>
+
+| Agent | Avg Reward (100 ep) | Strategy |
+|---|---|---|
+| **Random** | ~20 | Uniform random actions |
+| **Heuristic** | ~35 | If angle > 0 → push right, else push left |
+| **DQN (Ours)** | **500** ⭐ | Learned optimal policy via Deep Q-Learning |
+
+### Epsilon Decay & Loss Curves
+
+<p align="center">
+  <img src="results/plots/epsilon_decay.png" width="45%" alt="Epsilon decay over episodes">
+  <img src="results/plots/loss_curve.png" width="45%" alt="Training loss curve">
+</p>
+
+---
+
+## 🔬 Ablation Studies
+
+We conducted **4 systematic ablation studies** to understand how each hyperparameter affects convergence behavior. In each study, one parameter is varied while all others are held fixed at their tuned defaults.
+
+### Ablation 1 — Replay Buffer Size
+
+> *How much past experience does the agent need to learn effectively?*
+
+<p align="center">
+  <img src="results/plots/ablation_buffer_size.png" width="48%">
+  <img src="results/plots/ablation_buffer_size_bar.png" width="48%">
+</p>
+
+**Tested:** 1K · 5K · 10K · 50K transitions
+
+---
+
+### Ablation 2 — Epsilon Decay Rate
+
+> *How fast should the agent transition from exploration to exploitation?*
+
+<p align="center">
+  <img src="results/plots/ablation_epsilon_decay.png" width="48%">
+  <img src="results/plots/ablation_epsilon_decay_bar.png" width="48%">
+</p>
+
+**Tested:** 0.990 · 0.995 · 0.999 · 0.9995
+
+---
+
+### Ablation 3 — Network Depth
+
+> *Does a deeper Q-network learn a better policy?*
+
+<p align="center">
+  <img src="results/plots/ablation_network_depth.png" width="48%">
+  <img src="results/plots/ablation_network_depth_bar.png" width="48%">
+</p>
+
+**Tested:** 1 · 2 · 3 hidden layers (128 neurons each)
+
+---
+
+### Ablation 4 — Target Network Update Frequency
+
+> *How often should the target network synchronize with the policy network?*
+
+<p align="center">
+  <img src="results/plots/ablation_target_update.png" width="48%">
+  <img src="results/plots/ablation_target_update_bar.png" width="48%">
+</p>
+
+**Tested:** 250 · 500 · 1,000 · 2,000 steps
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# Clone
+git clone https://github.com/Abhics8/AgentForge.git
+cd AgentForge
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Train the DQN agent (1000 episodes)
+PYTHONPATH=. python src/train.py
+
+# Evaluate against baselines
+PYTHONPATH=. python src/evaluate.py
+
+# Run all 4 ablation studies
+PYTHONPATH=. python src/ablation.py
+
+# Run hyperparameter tuning
+PYTHONPATH=. python src/tune.py
+```
+
+---
+
+## 📁 Project Structure
+
+```
+AgentForge/
+├── configs/
+│   └── default.yaml              # All hyperparameters (single source of truth)
+├── src/
+│   ├── model.py                  # DQN architecture (configurable depth)
+│   ├── replay_buffer.py          # Experience replay (10K circular buffer)
+│   ├── agent.py                  # DQN agent (ε-greedy, target net, optimize)
+│   ├── environment.py            # Gymnasium CartPole-v1 wrapper
+│   ├── train.py                  # Training loop with convergence detection
+│   ├── evaluate.py               # Baseline comparison evaluation
+│   ├── ablation.py               # 4 ablation studies framework
+│   ├── tune.py                   # Hyperparameter tuning script
+│   └── utils.py                  # Plotting, config loading
+├── baselines/
+│   ├── random_agent.py           # Uniform random baseline (~20 reward)
+│   └── heuristic_agent.py        # Rule-based baseline (~35 reward)
+├── results/
+│   ├── plots/                    # All generated visualizations
+│   ├── checkpoints/              # Saved model weights (.pt)
+│   ├── logs/                     # Training CSV logs
+│   └── videos/                   # Agent gameplay recordings
+├── tests/
+│   └── test_components.py        # Unit tests
+└── requirements.txt
+```
+
+---
+
+## ⚙️ Hyperparameters
+
+```yaml
+# configs/default.yaml
+environment:
+  name: CartPole-v1
+  solved_reward: 195.0          # OpenAI benchmark threshold
+  solved_window: 100            # Rolling window for convergence check
+
+training:
+  episodes: 1000
+  seed: 42
+
+network:
+  hidden_size: 128              # Neurons per hidden layer
+  num_hidden_layers: 2          # Network depth
+
+agent:
+  replay_buffer_size: 10000     # Experience replay capacity
+  batch_size: 64                # Mini-batch size for SGD
+  gamma: 0.99                   # Discount factor
+  epsilon_start: 1.0            # Initial exploration rate
+  epsilon_end: 0.01             # Minimum exploration rate
+  epsilon_decay: 0.995          # Multiplicative decay per episode
+  learning_rate: 0.001          # Adam optimizer LR
+  target_update_freq: 500       # Steps between target net syncs
+```
+
+---
+
+## 🛠️ Tech Stack
+
+<p align="center">
+  <img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white" />
+  <img src="https://img.shields.io/badge/Gymnasium-0081A5?style=for-the-badge&logo=openaigym&logoColor=white" />
+  <img src="https://img.shields.io/badge/NumPy-013243?style=for-the-badge&logo=numpy&logoColor=white" />
+  <img src="https://img.shields.io/badge/Matplotlib-11557C?style=for-the-badge&logo=plotly&logoColor=white" />
+  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" />
+</p>
+
+---
+
+## 📚 References
+
+- Mnih et al., [*Playing Atari with Deep Reinforcement Learning*](https://arxiv.org/abs/1312.5602), DeepMind, 2013
+- Mnih et al., [*Human-level control through deep reinforcement learning*](https://www.nature.com/articles/nature14236), Nature, 2015
+- Sutton & Barto, [*Reinforcement Learning: An Introduction*](http://incompleteideas.net/book/the-book.html), 2nd ed.
+
+---
+
+<div align="center">
+
+**Built by [Abhi Bhardwaj](https://github.com/Abhics8)** · CSCI 6366 · GWU · Spring 2026
+
+</div>
