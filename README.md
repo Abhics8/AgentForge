@@ -11,8 +11,6 @@
 
 > *Teaching a neural network to master physical balance through trial, error, and zero labeled data.*
 
-**CSCI 6366 · Neural Networks & Deep Learning · Spring 2026**  
-**George Washington University · Prof. John Sipple**
 
 ---
 
@@ -275,6 +273,6 @@ agent:
 
 <div align="center">
 
-**Built by [Abhi Bhardwaj](https://github.com/Abhics8)** · CSCI 6366 · GWU · Spring 2026
+**Built by [Abhi Bhardwaj](https://github.com/Abhics8)**
 
 </div>
