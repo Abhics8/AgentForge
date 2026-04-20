@@ -18,11 +18,13 @@
 
 ## 📌 Problem Statement
 
-Balancing a pole on a moving cart is a classic control problem. Traditional solutions rely on hand-crafted physics equations and PID controllers. **AgentForge** takes a fundamentally different approach — a neural network agent that starts with **zero knowledge** and teaches itself optimal control purely through environmental feedback using **Deep Q-Learning (DQN)**.
+Imagine trying to balance a broomstick on your palm. You'd wobble, overcorrect, drop it — and then try again. Over time, through pure trial and error, you'd get better. **AgentForge works the same way**, except the "palm" is a moving cart, the "broomstick" is a pole, and the "you" is a neural network that has never seen this problem before.
 
-The agent observes a 4-dimensional state vector (cart position, cart velocity, pole angle, pole angular velocity), chooses between two actions (push left / push right), and learns which actions maximize long-term reward through thousands of episodes of trial and error.
+Traditional approaches solve this with hand-written physics equations — formulas that a human engineer explicitly programs. **AgentForge takes a fundamentally different approach:** the AI starts with absolutely zero knowledge and teaches itself to balance the pole purely by trying thousands of times and learning from its own mistakes. This technique is called **Deep Q-Learning (DQN)**.
 
-**Solved Criteria:** Achieve an average reward of **≥ 195 over 100 consecutive episodes** (OpenAI benchmark).
+Under the hood, the agent reads 4 numbers every frame (where the cart is, how fast it's moving, how tilted the pole is, and how fast it's tilting), picks one of two actions (push left or push right), and gradually discovers which sequences of actions keep the pole upright the longest.
+
+**Success Criteria:** The agent must balance the pole for an average of **≥ 195 time steps across 100 consecutive games** — the official OpenAI benchmark for "solved."
 
 ---
 
