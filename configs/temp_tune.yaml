@@ -1,0 +1,23 @@
+agent:
+  batch_size: 64
+  epsilon_decay: 0.995
+  epsilon_end: 0.01
+  epsilon_start: 1.0
+  gamma: 0.99
+  learning_rate: 0.0005
+  replay_buffer_size: 10000
+  target_update_freq: 1000
+environment:
+  name: CartPole-v1
+  solved_reward: 195.0
+  solved_window: 100
+logging:
+  log_interval: 10
+  results_dir: results
+  save_interval: 100
+network:
+  hidden_size: 128
+  num_hidden_layers: 2
+training:
+  episodes: 1000
+  seed: 42
