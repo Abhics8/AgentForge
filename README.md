@@ -167,6 +167,52 @@ We conducted **4 systematic ablation studies** to understand how each hyperparam
 
 ---
 
+## 🎯 Double DQN Extension
+
+Standard DQN uses the **same network** to both select and evaluate the best next action, which causes systematic **overestimation of Q-values**. Double DQN fixes this with a simple but powerful change — decouple selection from evaluation:
+
+| | Action Selection | Action Evaluation |
+|---|---|---|
+| **DQN** | Target Network | Target Network |
+| **Double DQN** | Policy Network | Target Network |
+
+```python
+# DQN:        y = r + γ · max_a' Q_target(s', a')
+# Double DQN: y = r + γ · Q_target(s', argmax_a' Q_policy(s', a'))
+```
+
+### Head-to-Head Results
+
+<p align="center">
+  <img src="results/plots/dqn_vs_double_dqn.png" width="48%">
+  <img src="results/plots/dqn_vs_double_dqn_bar.png" width="48%">
+</p>
+
+| Agent | Convergence Episode |
+|---|---|
+| **Standard DQN** | ~563 |
+| **Double DQN** | ~595 |
+
+Both agents solve the environment. On CartPole-v1 the difference is marginal since Q-value overestimation is less harmful in simple environments — but Double DQN becomes critical in complex environments with large action spaces.
+
+> *Reference: van Hasselt et al., "Deep Reinforcement Learning with Double Q-learning", AAAI 2016.*
+
+---
+
+## 🎬 Learning Progression
+
+Three gameplay videos demonstrate the agent's learning journey from random flailing to perfect control:
+
+| Stage | Video | Steps Survived | Description |
+|---|---|---|---|
+| 🔴 Untrained | `01_untrained.mp4` | ~11 | Random actions, pole falls immediately |
+| 🟡 Mid-Training | `02_mid_training.mp4` | ~500 | Loaded from episode 500 checkpoint |
+| 🟢 Fully Trained | `03_fully_trained.mp4` | **500** (max) | Perfect balance for the entire episode |
+
+Videos are saved in `results/videos/` and can be regenerated with `PYTHONPATH=. python src/record.py`.
+
+---
+
 ## 🚀 Quick Start
 
 ```bash
@@ -186,6 +232,12 @@ PYTHONPATH=. python src/evaluate.py
 # Run all 4 ablation studies
 PYTHONPATH=. python src/ablation.py
 
+# DQN vs Double DQN comparison
+PYTHONPATH=. python src/compare_dqn.py
+
+# Record gameplay videos
+PYTHONPATH=. python src/record.py
+
 # Run hyperparameter tuning
 PYTHONPATH=. python src/tune.py
 ```
@@ -202,10 +254,13 @@ AgentForge/
 │   ├── model.py                  # DQN architecture (configurable depth)
 │   ├── replay_buffer.py          # Experience replay (10K circular buffer)
 │   ├── agent.py                  # DQN agent (ε-greedy, target net, optimize)
+│   ├── double_dqn_agent.py       # Double DQN agent (decoupled evaluation)
 │   ├── environment.py            # Gymnasium CartPole-v1 wrapper
 │   ├── train.py                  # Training loop with convergence detection
 │   ├── evaluate.py               # Baseline comparison evaluation
+│   ├── compare_dqn.py            # DQN vs Double DQN head-to-head
 │   ├── ablation.py               # 4 ablation studies framework
+│   ├── record.py                 # Gameplay video recording
 │   ├── tune.py                   # Hyperparameter tuning script
 │   └── utils.py                  # Plotting, config loading
 ├── baselines/
