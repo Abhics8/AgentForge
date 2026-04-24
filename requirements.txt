@@ -7,3 +7,5 @@ imageio>=2.31.0
 imageio-ffmpeg>=0.4.8
 pandas>=2.0.0
 pytest>=7.0.0
+# Streamlit dependency
+streamlit>=1.30.0
