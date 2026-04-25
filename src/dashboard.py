@@ -10,6 +10,9 @@ Usage:
 """
 
 import os
+import sys
+import time
+import subprocess
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -141,8 +144,9 @@ st.markdown("""
 # ══════════════════════════════════════════════════════════
 # TAB NAVIGATION — replaces the sidebar radio buttons
 # ══════════════════════════════════════════════════════════
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab1, tab7, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📊 Training",
+    "🚀 Live Train",
     "🏆 Baselines",
     "🔬 Ablations",
     "🎯 Double DQN",
@@ -242,6 +246,168 @@ with tab1:
             st.dataframe(df, use_container_width=True, height=300)
     else:
         st.warning("Training log not found. Run `PYTHONPATH=. python src/train.py` first.")
+
+
+# ══════════════════════════════════════════════════════════
+# TAB 7: LIVE TRAINING
+# ══════════════════════════════════════════════════════════
+with tab7:
+    st.header("🚀 Live Training")
+    st.markdown("Launch a training run and watch the agent learn in real-time.")
+
+    # Session state initialization
+    if "training_running" not in st.session_state:
+        st.session_state.training_running = False
+    if "training_process" not in st.session_state:
+        st.session_state.training_process = None
+
+    # Config controls
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        live_episodes = st.number_input("Episodes", min_value=50, max_value=2000, value=500, step=50)
+    with col2:
+        live_lr = st.select_slider("Learning Rate", options=[0.0001, 0.0005, 0.001, 0.005, 0.01], value=0.001)
+    with col3:
+        live_target_freq = st.select_slider("Target Update Freq", options=[100, 250, 500, 1000, 2000], value=500)
+
+    st.markdown("---")
+
+    # Start / Stop buttons
+    col_btn1, col_btn2, _ = st.columns([1, 1, 3])
+    with col_btn1:
+        start_btn = st.button("▶️ Start Training", type="primary", use_container_width=True)
+    with col_btn2:
+        stop_btn = st.button("⏹️ Stop", use_container_width=True)
+
+    if stop_btn and st.session_state.training_process is not None:
+        st.session_state.training_process.terminate()
+        st.session_state.training_running = False
+        st.session_state.training_process = None
+        st.warning("Training stopped by user.")
+
+    if start_btn:
+        st.session_state.training_running = True
+
+        # Placeholders for live updates
+        status_box = st.empty()
+        progress_bar = st.progress(0)
+        metric_cols = st.columns(4)
+        m_episode = metric_cols[0].empty()
+        m_reward = metric_cols[1].empty()
+        m_rolling = metric_cols[2].empty()
+        m_epsilon = metric_cols[3].empty()
+        chart_placeholder = st.empty()
+        log_expander = st.expander("📟 Training Console Output", expanded=False)
+        log_box = log_expander.empty()
+
+        status_box.info("🔄 Launching training process...")
+
+        # Clear old log so we start fresh
+        log_path = os.path.join(LOGS_DIR, "training_log.csv")
+
+        # Spawn subprocess
+        env = os.environ.copy()
+        env["PYTHONPATH"] = "."
+        cmd = [
+            sys.executable, "src/train.py",
+        ]
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, bufsize=1, env=env,
+        )
+        st.session_state.training_process = proc
+
+        stdout_lines = []
+        last_ep = 0
+
+        while proc.poll() is None:
+            # Read any new stdout lines (non-blocking via readline)
+            while True:
+                line = proc.stdout.readline()
+                if not line:
+                    break
+                stdout_lines.append(line.rstrip())
+                # Keep only last 50 lines for display
+                if len(stdout_lines) > 50:
+                    stdout_lines = stdout_lines[-50:]
+
+            # Update console log
+            log_box.code("\n".join(stdout_lines[-30:]), language="text")
+
+            # Poll CSV for new data
+            if os.path.exists(log_path):
+                try:
+                    live_df = pd.read_csv(log_path)
+                    if len(live_df) > last_ep:
+                        last_ep = len(live_df)
+                        ep = int(live_df["episode"].iloc[-1])
+                        pct = min(ep / live_episodes, 1.0)
+
+                        progress_bar.progress(pct)
+                        status_box.info(f"🔄 Training... Episode {ep}/{live_episodes}")
+
+                        m_episode.metric("Episode", f"{ep}")
+                        m_reward.metric("Last Reward", f"{live_df['reward'].iloc[-1]:.0f}")
+                        m_rolling.metric("Rolling Avg", f"{live_df['rolling_avg'].iloc[-1]:.1f}")
+                        m_epsilon.metric("Epsilon", f"{live_df['epsilon'].iloc[-1]:.4f}")
+
+                        # Live Plotly chart
+                        fig = go.Figure()
+                        fig.add_trace(go.Scatter(
+                            x=live_df["episode"], y=live_df["reward"],
+                            mode="lines", name="Reward",
+                            line=dict(color="#60a5fa", width=1), opacity=0.4,
+                        ))
+                        fig.add_trace(go.Scatter(
+                            x=live_df["episode"], y=live_df["rolling_avg"],
+                            mode="lines", name="Rolling Avg",
+                            line=dict(color="#f87171", width=2.5),
+                        ))
+                        fig.add_hline(y=195, line_dash="dash", line_color="#34d399",
+                                      annotation_text="Solved (195)")
+                        fig.update_layout(
+                            title=f"Live Training — Episode {ep}",
+                            xaxis_title="Episode", yaxis_title="Reward",
+                            yaxis=dict(range=[0, 520]),
+                            height=450, **PLOTLY_LAYOUT,
+                        )
+                        chart_placeholder.plotly_chart(fig, use_container_width=True)
+
+                except Exception:
+                    pass  # CSV might be mid-write
+
+            time.sleep(1.5)
+
+        # Process finished — read remaining output
+        remaining = proc.stdout.read()
+        if remaining:
+            stdout_lines.extend(remaining.strip().split("\n"))
+            log_box.code("\n".join(stdout_lines[-30:]), language="text")
+
+        rc = proc.returncode
+        st.session_state.training_running = False
+        st.session_state.training_process = None
+        progress_bar.progress(1.0)
+
+        if rc == 0:
+            status_box.success("✅ Training complete!")
+            # Final chart update
+            if os.path.exists(log_path):
+                live_df = pd.read_csv(log_path)
+                m_episode.metric("Episode", f"{int(live_df['episode'].iloc[-1])}")
+                m_reward.metric("Last Reward", f"{live_df['reward'].iloc[-1]:.0f}")
+                m_rolling.metric("Rolling Avg", f"{live_df['rolling_avg'].iloc[-1]:.1f}")
+                m_epsilon.metric("Epsilon", f"{live_df['epsilon'].iloc[-1]:.4f}")
+                st.balloons()
+        else:
+            status_box.error(f"❌ Training failed with exit code {rc}")
+
+    elif not st.session_state.training_running:
+        st.markdown("""
+        > Click **▶️ Start Training** to launch a DQN training run.
+        > The reward curve, metrics, and console output will update live every ~2 seconds.
+        > Switch to the **📊 Training** tab after completion to see the final results.
+        """)
 
 
 # ══════════════════════════════════════════════════════════
