@@ -7,10 +7,13 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org)
 [![Gymnasium](https://img.shields.io/badge/Gymnasium-CartPole--v1-0081A5?style=for-the-badge&logo=openaigym&logoColor=white)](https://gymnasium.farama.org)
+[![Streamlit](https://img.shields.io/badge/Streamlit-Live_Dashboard-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://agentforge-abhi.streamlit.app)
+[![Tests](https://img.shields.io/badge/Tests-30%2F30_Passing-22c55e?style=for-the-badge&logo=pytest&logoColor=white)](#-testing)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
 > *Teaching a neural network to master physical balance through trial, error, and zero labeled data.*
 
+### 🌐 [**Launch Live Dashboard →**](https://agentforge-abhi.streamlit.app)
 
 ---
 
@@ -25,6 +28,29 @@ Traditional approaches solve this with hand-written physics equations — formul
 Under the hood, the agent reads 4 numbers every frame (where the cart is, how fast it's moving, how tilted the pole is, and how fast it's tilting), picks one of two actions (push left or push right), and gradually discovers which sequences of actions keep the pole upright the longest.
 
 **Success Criteria:** The agent must balance the pole for an average of **≥ 195 time steps across 100 consecutive games** — the official OpenAI benchmark for "solved."
+
+---
+
+## 🌐 Interactive Dashboard
+
+AgentForge ships with a full **Streamlit-powered web dashboard** for exploring every aspect of the project — no terminal required.
+
+### 🔗 **Live at [agentforge-abhi.streamlit.app](https://agentforge-abhi.streamlit.app)**
+
+| Tab | What You Get |
+|---|---|
+| 📊 **Training** | Interactive Plotly convergence chart (hover, zoom, pan), epsilon decay, loss curve, expandable raw data table |
+| 🚀 **Live Train** | One-click training with real-time progress bar, live-updating chart, streaming console output, and metric cards |
+| 🏆 **Baselines** | Animated bar chart comparing Random (20) vs Heuristic (35) vs DQN (500⭐) |
+| 🔬 **Ablations** | Dropdown to switch between 4 ablation studies with side-by-side plots |
+| 🎯 **Double DQN** | Code comparison + convergence curves for Standard vs Double DQN |
+| 🎬 **Videos** | Three playable gameplay videos showing the agent's learning progression |
+| 📐 **Architecture** | Graphviz flow diagram of the DQN pipeline + hyperparameter table |
+
+```bash
+# Run locally
+PYTHONPATH=. streamlit run src/dashboard.py
+```
 
 ---
 
@@ -64,6 +90,8 @@ Under the hood, the agent reads 4 numbers every frame (where the cart is, how fa
                      │   reward, next_state, done       │
                      └──────────────────────────────────┘
 ```
+
+> 📖 Full deep-dive with algorithm pseudocode, math, and references → [`docs/architecture.md`](docs/architecture.md)
 
 ### Key Components
 
@@ -226,6 +254,9 @@ pip install -r requirements.txt
 # Train the DQN agent (1000 episodes)
 PYTHONPATH=. python src/train.py
 
+# Launch the interactive dashboard
+PYTHONPATH=. streamlit run src/dashboard.py
+
 # Evaluate against baselines
 PYTHONPATH=. python src/evaluate.py
 
@@ -238,9 +269,27 @@ PYTHONPATH=. python src/compare_dqn.py
 # Record gameplay videos
 PYTHONPATH=. python src/record.py
 
-# Run hyperparameter tuning
-PYTHONPATH=. python src/tune.py
+# Live demo with visual pygame window
+PYTHONPATH=. python src/demo.py
+
+# Run test suite (30 tests)
+PYTHONPATH=. python -m pytest tests/ -v
 ```
+
+---
+
+## ✅ Testing
+
+**30/30 tests passing** across 4 test classes:
+
+```
+tests/test_components.py::TestReplayBuffer     (11 tests)  ✅
+tests/test_components.py::TestDQN              (8 tests)   ✅
+tests/test_components.py::TestDQNAgent         (10 tests)  ✅
+tests/test_components.py::TestUtils            (1 test)    ✅
+```
+
+CI runs automatically on every push via [GitHub Actions](.github/workflows/ci.yml) across Python 3.10, 3.11, and 3.12.
 
 ---
 
@@ -248,8 +297,12 @@ PYTHONPATH=. python src/tune.py
 
 ```
 AgentForge/
+├── .github/workflows/
+│   └── ci.yml                    # GitHub Actions CI (multi-Python + smoke test)
 ├── configs/
 │   └── default.yaml              # All hyperparameters (single source of truth)
+├── docs/
+│   └── architecture.md           # Deep-dive: algorithms, math, references
 ├── src/
 │   ├── model.py                  # DQN architecture (configurable depth)
 │   ├── replay_buffer.py          # Experience replay (10K circular buffer)
@@ -262,17 +315,19 @@ AgentForge/
 │   ├── ablation.py               # 4 ablation studies framework
 │   ├── record.py                 # Gameplay video recording
 │   ├── tune.py                   # Hyperparameter tuning script
+│   ├── demo.py                   # Live pygame demo for presentations
+│   ├── dashboard.py              # Streamlit interactive dashboard (7 tabs)
 │   └── utils.py                  # Plotting, config loading
 ├── baselines/
 │   ├── random_agent.py           # Uniform random baseline (~20 reward)
 │   └── heuristic_agent.py        # Rule-based baseline (~35 reward)
 ├── results/
-│   ├── plots/                    # All generated visualizations
+│   ├── plots/                    # 14 generated visualizations (dark-themed)
 │   ├── checkpoints/              # Saved model weights (.pt)
 │   ├── logs/                     # Training CSV logs
-│   └── videos/                   # Agent gameplay recordings
+│   └── videos/                   # 3 agent gameplay recordings
 ├── tests/
-│   └── test_components.py        # Unit tests
+│   └── test_components.py        # 30 unit tests
 └── requirements.txt
 ```
 
@@ -313,8 +368,9 @@ agent:
 <p align="center">
   <img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white" />
   <img src="https://img.shields.io/badge/Gymnasium-0081A5?style=for-the-badge&logo=openaigym&logoColor=white" />
+  <img src="https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" />
+  <img src="https://img.shields.io/badge/Plotly-3F4F75?style=for-the-badge&logo=plotly&logoColor=white" />
   <img src="https://img.shields.io/badge/NumPy-013243?style=for-the-badge&logo=numpy&logoColor=white" />
-  <img src="https://img.shields.io/badge/Matplotlib-11557C?style=for-the-badge&logo=plotly&logoColor=white" />
   <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" />
 </p>
 
@@ -324,6 +380,7 @@ agent:
 
 - Mnih et al., [*Playing Atari with Deep Reinforcement Learning*](https://arxiv.org/abs/1312.5602), DeepMind, 2013
 - Mnih et al., [*Human-level control through deep reinforcement learning*](https://www.nature.com/articles/nature14236), Nature, 2015
+- van Hasselt et al., [*Deep Reinforcement Learning with Double Q-learning*](https://arxiv.org/abs/1509.06461), AAAI, 2016
 - Sutton & Barto, [*Reinforcement Learning: An Introduction*](http://incompleteideas.net/book/the-book.html), 2nd ed.
 
 ---
