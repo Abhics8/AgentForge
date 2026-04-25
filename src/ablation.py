@@ -84,7 +84,9 @@ def plot_ablation(
     """
     Plot overlaid rolling-average reward curves for each ablation value.
     """
-    plt.figure(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(10, 6))
+    fig.patch.set_facecolor("#1a1f3a")
+    ax.set_facecolor("#1a1f3a")
 
     colors = ["#FF5252", "#FFA000", "#4CAF50", "#2196F3", "#9C27B0"]
 
@@ -98,18 +100,21 @@ def plot_ablation(
             rolling.append(np.mean(rewards[start : j + 1]))
 
         color = colors[i % len(colors)]
-        plt.plot(rolling, label=f"{xlabel}={val}", color=color, linewidth=1.5)
+        ax.plot(rolling, label=f"{xlabel}={val}", color=color, linewidth=1.5)
 
-    plt.axhline(y=195.0, color="gray", linestyle="--", alpha=0.6, label="Solved (195)")
-    plt.title(title, fontsize=14, pad=12)
-    plt.xlabel("Episode", fontsize=12)
-    plt.ylabel(f"Rolling Avg Reward ({window} ep)", fontsize=12)
-    plt.legend(fontsize=10)
-    plt.grid(True, alpha=0.3)
+    ax.axhline(y=195.0, color="gray", linestyle="--", alpha=0.6, label="Solved (195)")
+    ax.set_title(title, fontsize=14, pad=12, color="#e0e0e0")
+    ax.set_xlabel("Episode", fontsize=12, color="#9ca3af")
+    ax.set_ylabel(f"Rolling Avg Reward ({window} ep)", fontsize=12, color="#9ca3af")
+    ax.legend(fontsize=10, facecolor="#252b48", edgecolor="#3a4068", labelcolor="#d1d5db")
+    ax.grid(True, alpha=0.15, color="#4a5078")
+    ax.tick_params(colors="#9ca3af")
+    for spine in ax.spines.values():
+        spine.set_color("#3a4068")
     plt.tight_layout()
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.savefig(save_path, dpi=300, bbox_inches="tight", facecolor="#1a1f3a")
     plt.close()
     print(f"  Plot saved → {save_path}")
 
@@ -143,14 +148,17 @@ def plot_convergence_bar(
         convergence_episodes.append(conv_ep)
         bar_colors.append("#4CAF50" if conv_ep < len(rewards) else "#FF5252")
 
-    plt.figure(figsize=(8, 5))
-    bars = plt.bar(labels, convergence_episodes, color=bar_colors, alpha=0.85)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    fig.patch.set_facecolor("#1a1f3a")
+    ax.set_facecolor("#1a1f3a")
+
+    bars = ax.bar(labels, convergence_episodes, color=bar_colors, alpha=0.85)
 
     # Add value labels
     for bar, ep in zip(bars, convergence_episodes):
         yval = bar.get_height()
         lbl = f"{ep}" if ep < 1000 else "DNF"
-        plt.text(
+        ax.text(
             bar.get_x() + bar.get_width() / 2,
             yval + 15,
             lbl,
@@ -158,17 +166,21 @@ def plot_convergence_bar(
             va="bottom",
             fontsize=11,
             fontweight="bold",
+            color="#e0e0e0",
         )
 
-    plt.title(title, fontsize=14, pad=12)
-    plt.xlabel(xlabel, fontsize=12)
-    plt.ylabel("Convergence Episode", fontsize=12)
-    plt.ylim(0, 1100)
-    plt.grid(axis="y", linestyle="--", alpha=0.5)
+    ax.set_title(title, fontsize=14, pad=12, color="#e0e0e0")
+    ax.set_xlabel(xlabel, fontsize=12, color="#9ca3af")
+    ax.set_ylabel("Convergence Episode", fontsize=12, color="#9ca3af")
+    ax.set_ylim(0, 1100)
+    ax.grid(axis="y", linestyle="--", alpha=0.15, color="#4a5078")
+    ax.tick_params(colors="#9ca3af")
+    for spine in ax.spines.values():
+        spine.set_color("#3a4068")
     plt.tight_layout()
 
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    plt.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.savefig(save_path, dpi=300, bbox_inches="tight", facecolor="#1a1f3a")
     plt.close()
     print(f"  Plot saved → {save_path}")
 

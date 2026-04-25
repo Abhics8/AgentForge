@@ -110,47 +110,57 @@ def run_comparison():
     os.makedirs(plots_dir, exist_ok=True)
 
     window = 50
-    plt.figure(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(10, 6))
+    fig.patch.set_facecolor("#1a1f3a")
+    ax.set_facecolor("#1a1f3a")
 
     # DQN curve
     dqn_rolling = [np.mean(dqn_rewards[max(0, i - window + 1):i + 1]) for i in range(len(dqn_rewards))]
-    plt.plot(dqn_rolling, label="DQN", color="#FF5252", linewidth=1.5)
+    ax.plot(dqn_rolling, label="DQN", color="#FF5252", linewidth=1.5)
 
     # Double DQN curve
     ddqn_rolling = [np.mean(ddqn_rewards[max(0, i - window + 1):i + 1]) for i in range(len(ddqn_rewards))]
-    plt.plot(ddqn_rolling, label="Double DQN", color="#4CAF50", linewidth=1.5)
+    ax.plot(ddqn_rolling, label="Double DQN", color="#4CAF50", linewidth=1.5)
 
-    plt.axhline(y=195.0, color="gray", linestyle="--", alpha=0.6, label="Solved (195)")
-    plt.title("DQN vs Double DQN — Convergence Comparison", fontsize=14, pad=12)
-    plt.xlabel("Episode", fontsize=12)
-    plt.ylabel(f"Rolling Avg Reward ({window} ep)", fontsize=12)
-    plt.legend(fontsize=11)
-    plt.grid(True, alpha=0.3)
+    ax.axhline(y=195.0, color="gray", linestyle="--", alpha=0.6, label="Solved (195)")
+    ax.set_title("DQN vs Double DQN — Convergence Comparison", fontsize=14, pad=12, color="#e0e0e0")
+    ax.set_xlabel("Episode", fontsize=12, color="#9ca3af")
+    ax.set_ylabel(f"Rolling Avg Reward ({window} ep)", fontsize=12, color="#9ca3af")
+    ax.legend(fontsize=11, facecolor="#252b48", edgecolor="#3a4068", labelcolor="#d1d5db")
+    ax.grid(True, alpha=0.15, color="#4a5078")
+    ax.tick_params(colors="#9ca3af")
+    for spine in ax.spines.values():
+        spine.set_color("#3a4068")
     plt.tight_layout()
-    plt.savefig(f"{plots_dir}/dqn_vs_double_dqn.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"{plots_dir}/dqn_vs_double_dqn.png", dpi=300, bbox_inches="tight", facecolor="#1a1f3a")
     plt.close()
     print(f"\n  Convergence plot saved → {plots_dir}/dqn_vs_double_dqn.png")
 
     # ── Plot 2: Convergence Speed Bar Chart ───────────────────────
-    plt.figure(figsize=(6, 5))
+    fig, ax = plt.subplots(figsize=(6, 5))
+    fig.patch.set_facecolor("#1a1f3a")
+    ax.set_facecolor("#1a1f3a")
 
     labels = ["DQN", "Double DQN"]
     episodes = [dqn_conv or num_episodes, ddqn_conv or num_episodes]
     colors = ["#FF5252", "#4CAF50"]
 
-    bars = plt.bar(labels, episodes, color=colors, alpha=0.85, width=0.5)
+    bars = ax.bar(labels, episodes, color=colors, alpha=0.85, width=0.5)
 
     for bar, ep, conv in zip(bars, episodes, [dqn_conv, ddqn_conv]):
         lbl = str(ep) if conv else "DNF"
-        plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 15,
-                 lbl, ha="center", fontsize=12, fontweight="bold")
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 15,
+                 lbl, ha="center", fontsize=12, fontweight="bold", color="#e0e0e0")
 
-    plt.title("Convergence Speed: DQN vs Double DQN", fontsize=14, pad=12)
-    plt.ylabel("Episodes to Solve", fontsize=12)
-    plt.ylim(0, max(episodes) * 1.2)
-    plt.grid(axis="y", linestyle="--", alpha=0.5)
+    ax.set_title("Convergence Speed: DQN vs Double DQN", fontsize=14, pad=12, color="#e0e0e0")
+    ax.set_ylabel("Episodes to Solve", fontsize=12, color="#9ca3af")
+    ax.set_ylim(0, max(episodes) * 1.2)
+    ax.grid(axis="y", linestyle="--", alpha=0.15, color="#4a5078")
+    ax.tick_params(colors="#9ca3af")
+    for spine in ax.spines.values():
+        spine.set_color("#3a4068")
     plt.tight_layout()
-    plt.savefig(f"{plots_dir}/dqn_vs_double_dqn_bar.png", dpi=300, bbox_inches="tight")
+    plt.savefig(f"{plots_dir}/dqn_vs_double_dqn_bar.png", dpi=300, bbox_inches="tight", facecolor="#1a1f3a")
     plt.close()
     print(f"  Bar chart saved → {plots_dir}/dqn_vs_double_dqn_bar.png")
 
