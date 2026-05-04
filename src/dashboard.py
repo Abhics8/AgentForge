@@ -12,6 +12,9 @@ Usage:
 import os
 import sys
 import time
+
+# Ensure repo root is on sys.path (needed for Streamlit Cloud)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import subprocess
 import streamlit as st
 import pandas as pd
@@ -127,8 +130,19 @@ def load_training_data():
     """Load and cache training log CSV."""
     path = os.path.join(LOGS_DIR, "training_log.csv")
     if os.path.exists(path):
-        return pd.read_csv(path)
+        try:
+            df = pd.read_csv(path)
+            if df.empty or len(df) == 0:
+                return None
+            return df
+        except Exception:
+            return None
     return None
+
+
+def _is_cloud():
+    """Detect if running on Streamlit Community Cloud."""
+    return os.path.exists("/mount/src")
 
 
 # ══════════════════════════════════════════════════════════
@@ -249,17 +263,11 @@ with tab1:
 
 
 # ══════════════════════════════════════════════════════════
-# TAB 7: LIVE TRAINING
+# TAB 7: LIVE TRAINING (in-process — works everywhere)
 # ══════════════════════════════════════════════════════════
 with tab7:
     st.header("🚀 Live Training")
     st.markdown("Launch a training run and watch the agent learn in real-time.")
-
-    # Session state initialization
-    if "training_running" not in st.session_state:
-        st.session_state.training_running = False
-    if "training_process" not in st.session_state:
-        st.session_state.training_process = None
 
     # Config controls
     col1, col2, col3 = st.columns(3)
@@ -272,23 +280,14 @@ with tab7:
 
     st.markdown("---")
 
-    # Start / Stop buttons
-    col_btn1, col_btn2, _ = st.columns([1, 1, 3])
-    with col_btn1:
-        start_btn = st.button("▶️ Start Training", type="primary", use_container_width=True)
-    with col_btn2:
-        stop_btn = st.button("⏹️ Stop", use_container_width=True)
-
-    if stop_btn and st.session_state.training_process is not None:
-        st.session_state.training_process.terminate()
-        st.session_state.training_running = False
-        st.session_state.training_process = None
-        st.warning("Training stopped by user.")
+    start_btn = st.button("▶️ Start Training", type="primary", use_container_width=False)
 
     if start_btn:
-        st.session_state.training_running = True
+        # ── Import training components directly ──
+        from src.environment import make_env
+        from src.agent import DQNAgent
 
-        # Placeholders for live updates
+        # ── Placeholders for live updates ──
         status_box = st.empty()
         progress_bar = st.progress(0)
         metric_cols = st.columns(4)
@@ -297,116 +296,119 @@ with tab7:
         m_rolling = metric_cols[2].empty()
         m_epsilon = metric_cols[3].empty()
         chart_placeholder = st.empty()
-        log_expander = st.expander("📟 Training Console Output", expanded=False)
+        log_expander = st.expander("📟 Training Log", expanded=False)
         log_box = log_expander.empty()
 
-        status_box.info("🔄 Launching training process...")
+        status_box.info("🔄 Initializing agent and environment...")
 
-        # Clear old log so we start fresh
-        log_path = os.path.join(LOGS_DIR, "training_log.csv")
-
-        # Spawn subprocess
-        env = os.environ.copy()
-        env["PYTHONPATH"] = "."
-        cmd = [
-            sys.executable, "src/train.py",
-        ]
-        proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1, env=env,
+        # ── Create environment and agent ──
+        env = make_env(seed=42)
+        agent = DQNAgent(
+            state_dim=env.state_dim,
+            action_dim=env.action_dim,
+            hidden_size=128,
+            num_hidden_layers=2,
+            learning_rate=live_lr,
+            gamma=0.99,
+            epsilon_start=1.0,
+            epsilon_end=0.01,
+            epsilon_decay=0.995,
+            buffer_capacity=10000,
+            batch_size=64,
+            target_update_freq=live_target_freq,
+            seed=42,
         )
-        st.session_state.training_process = proc
 
-        stdout_lines = []
-        last_ep = 0
+        # ── Training loop (in-process) ──
+        rewards_history = []
+        rolling_avgs = []
+        epsilons = []
+        log_lines = []
+        solved_reward = 195.0
+        solved_window = 100
+        convergence_ep = None
 
-        while proc.poll() is None:
-            # Read any new stdout lines (non-blocking via readline)
-            while True:
-                line = proc.stdout.readline()
-                if not line:
-                    break
-                stdout_lines.append(line.rstrip())
-                # Keep only last 50 lines for display
-                if len(stdout_lines) > 50:
-                    stdout_lines = stdout_lines[-50:]
+        status_box.info(f"🔄 Training... Episode 0/{live_episodes}")
 
-            # Update console log
-            log_box.code("\n".join(stdout_lines[-30:]), language="text")
+        for episode in range(1, live_episodes + 1):
+            state = env.reset()
+            episode_reward = 0
+            done = False
 
-            # Poll CSV for new data
-            if os.path.exists(log_path):
-                try:
-                    live_df = pd.read_csv(log_path)
-                    if len(live_df) > last_ep:
-                        last_ep = len(live_df)
-                        ep = int(live_df["episode"].iloc[-1])
-                        pct = min(ep / live_episodes, 1.0)
+            while not done:
+                action = agent.select_action(state)
+                next_state, reward, terminated, truncated, _ = env.step(action)
+                done = terminated or truncated
+                agent.store_transition(state, action, reward, next_state, done)
+                agent.optimize()
+                state = next_state
+                episode_reward += reward
 
-                        progress_bar.progress(pct)
-                        status_box.info(f"🔄 Training... Episode {ep}/{live_episodes}")
+            agent.decay_epsilon()
+            rewards_history.append(episode_reward)
+            epsilons.append(agent.epsilon)
+            rolling_avg = float(np.mean(rewards_history[-solved_window:])) if len(rewards_history) >= solved_window else float(np.mean(rewards_history))
+            rolling_avgs.append(rolling_avg)
 
-                        m_episode.metric("Episode", f"{ep}")
-                        m_reward.metric("Last Reward", f"{live_df['reward'].iloc[-1]:.0f}")
-                        m_rolling.metric("Rolling Avg", f"{live_df['rolling_avg'].iloc[-1]:.1f}")
-                        m_epsilon.metric("Epsilon", f"{live_df['epsilon'].iloc[-1]:.4f}")
+            log_lines.append(
+                f"Ep {episode:>4d}/{live_episodes} | "
+                f"Reward: {episode_reward:>5.0f} | "
+                f"Avg: {rolling_avg:>6.1f} | "
+                f"ε: {agent.epsilon:.4f}"
+            )
 
-                        # Live Plotly chart
-                        fig = go.Figure()
-                        fig.add_trace(go.Scatter(
-                            x=live_df["episode"], y=live_df["reward"],
-                            mode="lines", name="Reward",
-                            line=dict(color="#60a5fa", width=1), opacity=0.4,
-                        ))
-                        fig.add_trace(go.Scatter(
-                            x=live_df["episode"], y=live_df["rolling_avg"],
-                            mode="lines", name="Rolling Avg",
-                            line=dict(color="#f87171", width=2.5),
-                        ))
-                        fig.add_hline(y=195, line_dash="dash", line_color="#34d399",
-                                      annotation_text="Solved (195)")
-                        fig.update_layout(
-                            title=f"Live Training — Episode {ep}",
-                            xaxis_title="Episode", yaxis_title="Reward",
-                            yaxis=dict(range=[0, 520]),
-                            height=450, **PLOTLY_LAYOUT,
-                        )
-                        chart_placeholder.plotly_chart(fig, use_container_width=True)
+            # ── Update UI every 10 episodes (or on last) ──
+            if episode % 10 == 0 or episode == live_episodes or (convergence_ep is None and rolling_avg >= solved_reward and len(rewards_history) >= solved_window):
+                pct = min(episode / live_episodes, 1.0)
+                progress_bar.progress(pct)
+                status_box.info(f"🔄 Training... Episode {episode}/{live_episodes}")
 
-                except Exception:
-                    pass  # CSV might be mid-write
+                m_episode.metric("Episode", f"{episode}")
+                m_reward.metric("Last Reward", f"{episode_reward:.0f}")
+                m_rolling.metric("Rolling Avg", f"{rolling_avg:.1f}")
+                m_epsilon.metric("Epsilon", f"{agent.epsilon:.4f}")
 
-            time.sleep(1.5)
+                # Live Plotly chart
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=list(range(1, episode + 1)), y=rewards_history,
+                    mode="lines", name="Reward",
+                    line=dict(color="#60a5fa", width=1), opacity=0.4,
+                ))
+                fig.add_trace(go.Scatter(
+                    x=list(range(1, episode + 1)), y=rolling_avgs,
+                    mode="lines", name="Rolling Avg",
+                    line=dict(color="#f87171", width=2.5),
+                ))
+                fig.add_hline(y=195, line_dash="dash", line_color="#34d399",
+                              annotation_text="Solved (195)")
+                fig.update_layout(
+                    title=f"Live Training — Episode {episode}",
+                    xaxis_title="Episode", yaxis_title="Reward",
+                    yaxis=dict(range=[0, 520]),
+                    height=450, **PLOTLY_LAYOUT,
+                )
+                chart_placeholder.plotly_chart(fig, use_container_width=True)
+                log_box.code("\n".join(log_lines[-30:]), language="text")
 
-        # Process finished — read remaining output
-        remaining = proc.stdout.read()
-        if remaining:
-            stdout_lines.extend(remaining.strip().split("\n"))
-            log_box.code("\n".join(stdout_lines[-30:]), language="text")
+            # Check for convergence
+            if convergence_ep is None and len(rewards_history) >= solved_window and rolling_avg >= solved_reward:
+                convergence_ep = episode
 
-        rc = proc.returncode
-        st.session_state.training_running = False
-        st.session_state.training_process = None
+        env.close()
         progress_bar.progress(1.0)
 
-        if rc == 0:
-            status_box.success("✅ Training complete!")
-            # Final chart update
-            if os.path.exists(log_path):
-                live_df = pd.read_csv(log_path)
-                m_episode.metric("Episode", f"{int(live_df['episode'].iloc[-1])}")
-                m_reward.metric("Last Reward", f"{live_df['reward'].iloc[-1]:.0f}")
-                m_rolling.metric("Rolling Avg", f"{live_df['rolling_avg'].iloc[-1]:.1f}")
-                m_epsilon.metric("Epsilon", f"{live_df['epsilon'].iloc[-1]:.4f}")
-                st.balloons()
+        if convergence_ep:
+            status_box.success(f"✅ Solved at episode {convergence_ep}! Rolling avg: {rolling_avgs[convergence_ep - 1]:.1f} ≥ 195")
         else:
-            status_box.error(f"❌ Training failed with exit code {rc}")
+            status_box.success(f"✅ Training complete! Final rolling avg: {rolling_avgs[-1]:.1f}")
+        st.balloons()
 
-    elif not st.session_state.training_running:
+    else:
         st.markdown("""
-        > Click **▶️ Start Training** to launch a DQN training run.
-        > The reward curve, metrics, and console output will update live every ~2 seconds.
-        > Switch to the **📊 Training** tab after completion to see the final results.
+        > Click **▶️ Start Training** to train a fresh DQN agent right here in the browser.
+        > The reward curve, metrics, and training log update live as the agent learns.
+        > No local setup needed — training runs entirely in-process.
         """)
 
 
